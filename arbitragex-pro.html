@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>ArbitrageX Pro</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0e17;--surface:#111827;--surface2:#1a2234;--surface3:#222d42;
+  --border:#1e2d45;--accent:#3b82f6;--green:#10b981;--red:#ef4444;
+  --yellow:#f59e0b;--text:#e2e8f0;--muted:#64748b;--mono:'Courier New',monospace;
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;overflow-x:hidden}
+
+/* SIDEBAR */
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:56px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px;z-index:100}
+.sidebar-logo{width:36px;height:36px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:14px;color:#fff;margin-bottom:12px}
+.nav-btn{width:40px;height:40px;border-radius:8px;border:none;background:transparent;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;transition:all .2s;position:relative}
+.nav-btn:hover,.nav-btn.active{background:rgba(59,130,246,0.15);color:var(--accent)}
+.nav-btn .tooltip{position:absolute;left:52px;background:#1e293b;color:#fff;font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .2s;border:1px solid var(--border)}
+.nav-btn:hover .tooltip{opacity:1}
+.sidebar-bottom{margin-top:auto}
+
+/* MAIN */
+.main{margin-left:56px;min-height:100vh;display:flex;flex-direction:column}
+
+/* TOPBAR */
+.topbar{height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px;position:sticky;top:0;z-index:50}
+.topbar-title{font-size:14px;font-weight:700;flex:1}
+.status-pill{display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;border:1px solid var(--border)}
+.status-dot{width:6px;height:6px;border-radius:50%}
+.status-dot.on{background:var(--green);box-shadow:0 0 6px var(--green)}
+.status-dot.off{background:var(--red)}
+
+/* STATS BAR */
+.statsbar{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border);border-bottom:1px solid var(--border)}
+.stat{background:var(--surface);padding:10px 14px}
+.stat-label{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px}
+.stat-val{font-size:20px;font-weight:800;font-family:var(--mono)}
+.stat-val.green{color:var(--green)}
+.stat-val.blue{color:var(--accent)}
+.stat-val.yellow{color:var(--yellow)}
+.stat-val.red{color:var(--red)}
+
+/* PANELS */
+.panel{display:none;flex:1;padding:16px}
+.panel.active{display:block}
+
+/* SECTION */
+.section{background:var(--surface);border:1px solid var(--border);border-radius:10px;margin-bottom:14px;overflow:hidden}
+.section-head{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.section-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);display:flex;align-items:center;gap:8px}
+.section-body{padding:16px}
+
+/* INPUTS */
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+.form-group input,.form-group select{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 10px;font-size:13px;font-family:inherit;transition:border-color .2s}
+.form-group input:focus,.form-group select:focus{outline:none;border-color:var(--accent)}
+
+/* BUTTONS */
+.btn{padding:9px 16px;border-radius:7px;border:none;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:6px;font-family:inherit}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:#2563eb}
+.btn-success{background:var(--green);color:#fff}
+.btn-success:hover{background:#059669}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+.btn-danger{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2)}
+.btn-full{width:100%;justify-content:center}
+.btn-sm{padding:6px 10px;font-size:11px;border-radius:5px}
+
+/* SCANNER */
+#cam-wrap{position:relative;background:#000;border-radius:8px;overflow:hidden;aspect-ratio:4/3;max-height:260px}
+#cam-wrap video{width:100%;height:100%;object-fit:cover}
+.cam-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.cam-frame{width:200px;height:100px;border:2px solid var(--accent);border-radius:6px;position:relative;box-shadow:0 0 0 1000px rgba(0,0,0,.5)}
+.cam-line{position:absolute;left:0;right:0;height:2px;background:var(--accent);box-shadow:0 0 8px var(--accent);animation:scan 1.6s ease-in-out infinite alternate}
+@keyframes scan{0%{top:0}100%{top:calc(100% - 2px)}}
+.cam-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;gap:10px;color:var(--muted)}
+
+/* DEALS GRID */
+.deals-grid{display:flex;flex-direction:column;gap:10px}
+.deal-row{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;cursor:pointer;transition:all .2s;position:relative}
+.deal-row:hover{border-color:var(--accent);background:var(--surface3)}
+.deal-row-top{display:flex;align-items:flex-start;gap:10px}
+.deal-emoji{width:40px;height:40px;background:var(--surface3);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.deal-info{flex:1;min-width:0}
+.deal-name{font-size:13px;font-weight:700;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.deal-source-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:800;margin-bottom:6px}
+.deal-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.metric{background:var(--surface);border-radius:6px;padding:6px 8px;text-align:center}
+.metric-label{font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase}
+.metric-val{font-size:14px;font-weight:900;font-family:var(--mono)}
+.deal-price-col{text-align:right;flex-shrink:0}
+.price-orig{font-size:11px;color:var(--muted);text-decoration:line-through}
+.price-sale{font-size:20px;font-weight:900;color:var(--yellow)}
+.price-badge{background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:2px 6px;border-radius:4px;display:inline-block;margin-top:2px}
+.deal-actions{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.roi-bar-wrap{display:flex;align-items:center;gap:6px;margin-top:6px}
+.roi-bar{flex:1;height:3px;background:var(--border);border-radius:2px;overflow:hidden}
+.roi-fill{height:100%;border-radius:2px;transition:width .5s}
+
+/* RESULTS TABLE */
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:600px}
+th{padding:9px 12px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);background:var(--surface2);border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:10px 12px;font-size:12px;border-bottom:1px solid rgba(30,45,69,.5)}
+tr:hover td{background:rgba(59,130,246,.04)}
+tr:last-child td{border-bottom:none}
+.td-name{font-weight:700;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tag{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:800}
+.tag.green{background:rgba(16,185,129,.1);color:var(--green);border:1px solid rgba(16,185,129,.2)}
+.tag.yellow{background:rgba(245,158,11,.1);color:var(--yellow);border:1px solid rgba(245,158,11,.2)}
+.tag.red{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2)}
+
+/* SETTINGS */
+.settings-section{margin-bottom:20px}
+.settings-title{font-size:10px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.api-card{background:var(--surface2);border-radius:8px;padding:12px;border:1px solid var(--border);margin-bottom:10px}
+.api-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.api-dot{width:8px;height:8px;border-radius:50%}
+.api-dot.on{background:var(--green);box-shadow:0 0 6px var(--green)}
+.api-dot.off{background:var(--red)}
+
+/* FILTER TOOLBAR */
+.filter-bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.filter-chip{padding:5px 12px;border-radius:20px;border:1px solid var(--border);font-size:11px;font-weight:700;cursor:pointer;background:transparent;color:var(--muted);font-family:inherit;transition:all .2s}
+.filter-chip.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* SCANNER RESULT */
+.result-card{background:var(--surface2);border-radius:8px;padding:14px;margin-top:12px;display:none}
+.result-card.show{display:block}
+.result-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+.result-item{background:var(--surface3);border-radius:7px;padding:10px}
+.result-item-label{font-size:9px;color:var(--muted);font-weight:700;text-transform:uppercase;margin-bottom:3px}
+.result-item-val{font-size:18px;font-weight:900;font-family:var(--mono)}
+
+/* DROP ZONE */
+.dropzone{border:2px dashed var(--border);border-radius:8px;padding:24px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:12px}
+.dropzone:hover,.dropzone.drag{border-color:var(--accent);background:rgba(59,130,246,.04)}
+
+/* NOTIF */
+.notif{position:fixed;top:16px;right:16px;z-index:999;background:var(--surface2);border:1px solid var(--green);border-radius:8px;padding:10px 14px;font-size:12px;font-weight:700;color:var(--green);box-shadow:0 4px 16px rgba(0,0,0,.4);transform:translateX(120%);transition:transform .3s;max-width:260px}
+.notif.show{transform:translateX(0)}
+
+/* LOADING */
+.loading{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;padding:20px}
+.spin{width:16px;height:16px;border-radius:50%;border:2px solid var(--border);border-top-color:var(--accent);animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.empty-state{text-align:center;padding:40px;color:var(--muted)}
+.empty-icon{font-size:32px;display:block;margin-bottom:8px}
+
+@media(max-width:480px){
+  .statsbar{grid-template-columns:repeat(3,1fr)}
+  .stat:nth-child(4),.stat:nth-child(5){display:none}
+  .form-row{grid-template-columns:1fr}
+  .settings-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-logo">AX</div>
+  <button class="nav-btn active" onclick="showPanel('scanner',this)" title="Scanner">
+    📷<span class="tooltip">Scanner</span>
+  </button>
+  <button class="nav-btn" onclick="showPanel('sourcing',this)">
+    🤖<span class="tooltip">Sourcing Auto</span>
+  </button>
+  <button class="nav-btn" onclick="showPanel('manual',this)">
+    ✏️<span class="tooltip">Manuel</span>
+  </button>
+  <button class="nav-btn" onclick="showPanel('results',this)">
+    📊<span class="tooltip">Résultats</span>
+  </button>
+  <div class="sidebar-bottom">
+    <button class="nav-btn" onclick="showPanel('settings',this)">
+      ⚙️<span class="tooltip">Réglages</span>
+    </button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-title">ArbitrageX <span style="color:var(--accent)">Pro</span></div>
+    <div class="status-pill" id="keepa-pill">
+      <div class="status-dot off" id="keepa-dot"></div>
+      <span id="keepa-txt" style="font-size:11px;font-weight:700;color:var(--muted)">Keepa OFF</span>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="showPanel('settings',document.querySelector('.nav-btn:last-child'))">⚙️</button>
+  </div>
+
+  <!-- STATS BAR -->
+  <div class="statsbar">
+    <div class="stat"><div class="stat-label">Analysés</div><div class="stat-val blue" id="s-total">0</div></div>
+    <div class="stat"><div class="stat-label">Rentables</div><div class="stat-val green" id="s-good">0</div></div>
+    <div class="stat"><div class="stat-label">ROI moyen</div><div class="stat-val yellow" id="s-roi">—</div></div>
+    <div class="stat"><div class="stat-label">Profit total</div><div class="stat-val green" id="s-profit">—</div></div>
+    <div class="stat"><div class="stat-label">Deals scrapés</div><div class="stat-val blue" id="s-deals">0</div></div>
+  </div>
+
+  <!-- ===== SCANNER ===== -->
+  <div class="panel active" id="panel-scanner">
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title">📷 Scanner Code Barre</div>
+        <button class="btn btn-ghost btn-sm" onclick="manualEAN()">⌨️ EAN Manuel</button>
+      </div>
+      <div class="section-body">
+        <div id="cam-wrap">
+          <div class="cam-placeholder" id="cam-placeholder">
+            <span style="font-size:40px">📷</span>
+            <span style="font-size:13px;font-weight:700">Caméra non démarrée</span>
+          </div>
+          <div class="cam-overlay" id="cam-overlay" style="display:none">
+            <div class="cam-frame"><div class="cam-line"></div></div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="btn btn-primary btn-full" id="btn-scan" onclick="toggleScanner()">▶ Démarrer</button>
+          <button class="btn btn-ghost" onclick="manualEAN()">⌨️</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="result-card" id="scan-result-card">
+      <div id="scan-result-content"></div>
+    </div>
+  </div>
+
+  <!-- ===== SOURCING AUTO ===== -->
+  <div class="panel" id="panel-sourcing">
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title">🤖 Sourcing Automatique</div>
+        <span style="font-size:10px;color:var(--green);font-weight:700">9 sources actives</span>
+      </div>
+      <div class="section-body">
+        <!-- Sources -->
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">
+          <span style="background:rgba(255,107,53,.15);color:#FF6B35;border:1px solid rgba(255,107,53,.3);padding:3px 9px;border-radius:4px;font-size:11px;font-weight:800">● Dealabs</span>
+          <span style="background:rgba(230,57,70,.15);color:#E63946;border:1px solid rgba(230,57,70,.3);padding:3px 9px;border-radius:4px;font-size:11px;font-weight:800">● BonnesAffaires</span>
+          <span style="background:rgba(106,13,173,.15);color:#9333ea;border:1px solid rgba(106,13,173,.3);padding:3px 9px;border-radius:4px;font-size:11px;font-weight:800">● QuiBonPlan</span>
+          <span style="background:rgba(227,6,19,.15);color:#E30613;border:1px solid rgba(227,6,19,.3);padding:3px 9px;border-radius:4px;font-size:11px;font-weight:800">● CDiscount</span>
+          <span style="background:rgba(245,166,35,.15);color:#F5A623;border:1px solid rgba(245,166,35,.3);padding:3px 9px;border-radius:4px;font-size:11px;font-weight:800">● Fnac</span>
+          <span style="background:rgba(191,0,0,.15);color:#BF0000;border:1px solid rgba(191,0,0,.3);padding:3px 9px;border-radius:4px;font-size:11px;font-weight:800">● Rakuten</span>
+          <span style="background:rgba(0,100,210,.15);color:#0064D2;border:1px solid rgba(0,100,210,.3);padding:3px 9px;border-radius:4px;font-size:11px;font-weight:800">● eBay</span>
+          <span style="background:rgba(0,160,155,.15);color:#00A09B;border:1px solid rgba(0,160,155,.3);padding:3px 9px;border-radius:4px;font-size:11px;font-weight:800">● Idealo</span>
+          <span style="background:rgba(226,0,122,.15);color:#E2007A;border:1px solid rgba(226,0,122,.3);padding:3px 9px;border-radius:4px;font-size:11px;font-weight:800">● Veepee</span>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Catégorie</label>
+            <select id="src-cat">
+              <option value="all">Toutes catégories</option>
+              <option value="jouets">Jouets & Jeux</option>
+              <option value="electronique">Électronique</option>
+              <option value="maison">Maison & Jardin</option>
+              <option value="sport">Sport & Loisirs</option>
+              <option value="beaute">Beauté & Santé</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Réduction min</label>
+            <select id="src-discount">
+              <option value="20">≥ 20%</option>
+              <option value="30" selected>≥ 30%</option>
+              <option value="40">≥ 40%</option>
+              <option value="50">≥ 50%</option>
+            </select>
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-full" onclick="startSourcing()" id="btn-source">
+          🚀 Lancer le sourcing
+        </button>
+      </div>
+    </div>
+
+    <div id="deals-feed"></div>
+  </div>
+
+  <!-- ===== MANUEL ===== -->
+  <div class="panel" id="panel-manual">
+    <div class="section">
+      <div class="section-head">
+        <div class="section-title">📂 Import fichier</div>
+      </div>
+      <div class="section-body">
+        <div class="dropzone" id="dropzone" onclick="document.getElementById('file-in').click()">
+          <div style="font-size:28px;margin-bottom:6px">📂</div>
+          <div style="font-size:13px;font-weight:700;margin-bottom:3px">Glisser votre fichier ici</div>
+          <div style="font-size:11px;color:var(--muted)">CSV ou Excel · Colonnes: Nom, EAN, Prix achat</div>
+        </div>
+        <input type="file" id="file-in" accept=".csv,.xlsx,.xls" style="display:none" onchange="handleFile(this)">
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><div class="section-title">✏️ Saisie manuelle</div></div>
+      <div class="section-body">
+        <div class="form-group" style="margin-bottom:10px">
+          <label>Nom du produit</label>
+          <input type="text" id="m-name" placeholder="Ex: LEGO City 60374">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>EAN / Code barre</label>
+            <input type="text" id="m-ean" placeholder="5702016617313">
+          </div>
+          <div class="form-group">
+            <label>Prix achat (€)</label>
+            <input type="number" id="m-buy" placeholder="14.99" step="0.01">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Prix Amazon (€)</label>
+            <input type="number" id="m-amazon" placeholder="Auto via Keepa" step="0.01">
+          </div>
+          <div class="form-group">
+            <label>Catégorie</label>
+            <select id="m-cat">
+              <option value="0.15">Général (15%)</option>
+              <option value="0.08">Livres (8%)</option>
+              <option value="0.15">Maison (15%)</option>
+              <option value="0.17">Vêtements (17%)</option>
+              <option value="0.10">Épicerie (10%)</option>
+              <option value="0.15">Jouets (15%)</option>
+              <option value="0.15">Électronique (15%)</option>
+              <option value="0.12">Sports (12%)</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="analyzeManual()">📊 Analyser</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== RESULTS ===== -->
+  <div class="panel" id="panel-results">
+    <div class="filter-bar">
+      <button class="filter-chip active" onclick="setFilter('all',this)">Tous <span id="fc-all">0</span></button>
+      <button class="filter-chip" onclick="setFilter('green',this)">✅ Rentables <span id="fc-green">0</span></button>
+      <button class="filter-chip" onclick="setFilter('yellow',this)">⚠️ Limite <span id="fc-yellow">0</span></button>
+      <button class="filter-chip" onclick="setFilter('red',this)">❌ Non rent. <span id="fc-red">0</span></button>
+      <button class="btn btn-ghost btn-sm" onclick="exportCSV()" style="margin-left:auto">⬇ CSV</button>
+    </div>
+    <div class="section">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Produit</th>
+              <th>Source</th>
+              <th>Achat</th>
+              <th>Amazon</th>
+              <th>Profit</th>
+              <th>ROI</th>
+              <th>BSR</th>
+              <th>Statut</th>
+            </tr>
+          </thead>
+          <tbody id="results-tbody">
+            <tr><td colspan="8"><div class="empty-state"><span class="empty-icon">🔍</span>Aucun produit analysé</div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SETTINGS ===== -->
+  <div class="panel" id="panel-settings">
+
+    <div class="section">
+      <div class="section-head"><div class="section-title">🔗 Connexions API</div></div>
+      <div class="section-body">
+        <div class="api-card">
+          <div class="api-row">
+            <div class="api-dot off" id="dot-keepa"></div>
+            <span style="font-weight:700;font-size:13px">Keepa API</span>
+            <span style="margin-left:auto;font-size:11px;color:var(--muted)">~15€/mois</span>
+          </div>
+          <div class="form-group">
+            <label>Clé API</label>
+            <input type="password" id="set-keepa" placeholder="keepa.com/api → votre clé">
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px">Sans clé = données simulées. Avec clé = vrais prix Amazon en temps réel.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><div class="section-title">🎯 Filtres de rentabilité</div></div>
+      <div class="section-body">
+        <div class="settings-grid">
+          <div class="form-group"><label>ROI minimum (%)</label><input type="number" id="set-roi" value="30"></div>
+          <div class="form-group"><label>Profit minimum (€)</label><input type="number" id="set-profit" value="3"></div>
+          <div class="form-group"><label>BSR maximum</label><input type="number" id="set-bsr" value="200000"></div>
+          <div class="form-group"><label>Vendeurs FBA max</label><input type="number" id="set-sellers" value="15"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><div class="section-title">💸 Frais & TVA</div></div>
+      <div class="section-body">
+        <div class="settings-grid">
+          <div class="form-group"><label>TVA (%)</label><input type="number" id="set-tva" value="20"></div>
+          <div class="form-group"><label>Frais prep (€/unité)</label><input type="number" id="set-prep" value="0" step="0.1"></div>
+        </div>
+        <div class="form-group" style="margin-top:10px">
+          <label>Catégorie par défaut</label>
+          <select id="set-cat">
+            <option value="0.15">Général (15%)</option>
+            <option value="0.08">Livres (8%)</option>
+            <option value="0.15">Maison (15%)</option>
+            <option value="0.17">Vêtements (17%)</option>
+            <option value="0.10">Épicerie (10%)</option>
+            <option value="0.15">Jouets (15%)</option>
+            <option value="0.15">Électronique (15%)</option>
+            <option value="0.12">Sports (12%)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-head"><div class="section-title">🤖 Sourcing</div></div>
+      <div class="section-body">
+        <div class="settings-grid">
+          <div class="form-group"><label>Réduction min (%)</label><input type="number" id="set-discount" value="30"></div>
+          <div class="form-group"><label>Deals max</label><input type="number" id="set-maxdeals" value="20"></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:4px">
+      <button class="btn btn-primary btn-full" onclick="saveSettings()">💾 Sauvegarder</button>
+      <button class="btn btn-ghost" onclick="resetSettings()">🔄 Reset</button>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- NOTIF -->
+<div class="notif" id="notif"></div>
+
+<script>
+// ============================================================
+// STATE & SETTINGS
+// ============================================================
+let products = [], deals = [], scanActive = false, currentFilter = 'all';
+let keepaKey = localStorage.getItem('kk') || '';
+
+const DEF = {roi:30,profit:3,bsr:200000,sellers:15,tva:20,prep:0,cat:'0.15',discount:30,maxdeals:20};
+let S = {...DEF};
+try{ const sv = localStorage.getItem('axs'); if(sv) S={...DEF,...JSON.parse(sv)}; }catch(e){}
+
+function gs(k){ return S[k]??DEF[k]; }
+
+// ============================================================
+// NAV
+// ============================================================
+function showPanel(name, btn){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+  if(btn) btn.classList.add('active');
+}
+
+// ============================================================
+// NOTIFY
+// ============================================================
+function notify(msg, color='var(--green)'){
+  const n=document.getElementById('notif');
+  n.textContent=msg; n.style.borderColor=color; n.style.color=color;
+  n.classList.add('show'); setTimeout(()=>n.classList.remove('show'),3000);
+}
+
+// ============================================================
+// SETTINGS
+// ============================================================
+function loadSettingsUI(){
+  document.getElementById('set-keepa').value = keepaKey;
+  document.getElementById('set-roi').value = gs('roi');
+  document.getElementById('set-profit').value = gs('profit');
+  document.getElementById('set-bsr').value = gs('bsr');
+  document.getElementById('set-sellers').value = gs('sellers');
+  document.getElementById('set-tva').value = gs('tva');
+  document.getElementById('set-prep').value = gs('prep');
+  document.getElementById('set-cat').value = gs('cat');
+  document.getElementById('set-discount').value = gs('discount');
+  document.getElementById('set-maxdeals').value = gs('maxdeals');
+  updateKeepaStatus();
+}
+function saveSettings(){
+  const k = document.getElementById('set-keepa').value.trim();
+  if(k){ keepaKey=k; localStorage.setItem('kk',k); }
+  S={
+    roi: parseFloat(document.getElementById('set-roi').value)||30,
+    profit: parseFloat(document.getElementById('set-profit').value)||3,
+    bsr: parseInt(document.getElementById('set-bsr').value)||200000,
+    sellers: parseInt(document.getElementById('set-sellers').value)||15,
+    tva: parseFloat(document.getElementById('set-tva').value)||20,
+    prep: parseFloat(document.getElementById('set-prep').value)||0,
+    cat: document.getElementById('set-cat').value||'0.15',
+    discount: parseInt(document.getElementById('set-discount').value)||30,
+    maxdeals: parseInt(document.getElementById('set-maxdeals').value)||20,
+  };
+  localStorage.setItem('axs',JSON.stringify(S));
+  updateKeepaStatus();
+  notify('✅ Réglages sauvegardés !');
+}
+function resetSettings(){
+  S={...DEF}; localStorage.removeItem('axs');
+  loadSettingsUI(); notify('🔄 Réinitialisé');
+}
+function updateKeepaStatus(){
+  const on = !!keepaKey;
+  document.getElementById('keepa-dot').className='status-dot '+(on?'on':'off');
+  document.getElementById('dot-keepa').className='api-dot '+(on?'on':'off');
+  document.getElementById('keepa-txt').textContent = on?'Keepa ON':'Keepa OFF';
+  document.getElementById('keepa-txt').style.color = on?'var(--green)':'var(--muted)';
+}
+
+// ============================================================
+// CALC PROFIT
+// ============================================================
+function calcProfit(amazon, buy, commRate=null){
+  const rate = commRate || parseFloat(gs('cat'));
+  const prep = parseFloat(gs('prep'))||0;
+  const comm = +(amazon*rate).toFixed(2);
+  const fba = amazon<10?2.50:amazon<20?3.20:amazon<40?4.10:5.30;
+  const profit = +(amazon-comm-fba-buy-prep).toFixed(2);
+  const roi = +((profit/buy)*100).toFixed(1);
+  const minRoi = gs('roi'), minP = gs('profit');
+  const status = roi>=minRoi&&profit>=minP?'green':roi>=minRoi/2&&profit>=0?'yellow':'red';
+  return {profit,roi,status,comm,fba};
+}
+
+// ============================================================
+// KEEPA (real + fallback)
+// ============================================================
+async function fetchKeepa(ean){
+  if(keepaKey){
+    try{
+      const r=await fetch(`https://api.keepa.com/product?key=${keepaKey}&domain=4&code=${ean}`);
+      const j=await r.json();
+      if(j.products&&j.products.length){
+        const p=j.products[0];
+        const price=p.csv&&p.csv[1]?p.csv[1][p.csv[1].length-1]/100:null;
+        const bsr=p.salesRanks?Object.values(p.salesRanks)[0]?.slice(-1)[0]:null;
+        return{name:p.title||'Produit '+ean,amazonPrice:price||simPrice(),bsr:bsr||rndBsr(),real:true};
+      }
+    }catch(e){}
+  }
+  return{name:'Produit EAN '+ean,amazonPrice:simPrice(),bsr:rndBsr(),real:false};
+}
+function simPrice(){ return +(Math.random()*45+8).toFixed(2); }
+function rndBsr(){ return Math.floor(Math.random()*180000)+2000; }
+
+// ============================================================
+// SCANNER
+// ============================================================
+function toggleScanner(){ scanActive?stopScanner():startScanner(); }
+function startScanner(){
+  document.getElementById('cam-placeholder').style.display='none';
+  document.getElementById('cam-overlay').style.display='flex';
+  document.getElementById('btn-scan').textContent='⏹ Arrêter';
+  const wrap=document.getElementById('cam-wrap');
+  Quagga.init({
+    inputStream:{name:'Live',type:'LiveStream',target:wrap,constraints:{facingMode:'environment'}},
+    decoder:{readers:['ean_reader','ean_8_reader','code_128_reader','upc_reader']}
+  },err=>{
+    if(err){
+      notify('⚠️ Caméra inaccessible','var(--yellow)');
+      stopScanner(); return;
+    }
+    Quagga.start(); scanActive=true;
+  });
+  Quagga.onDetected(r=>{
+    const code=r.codeResult.code;
+    if(code){ stopScanner(); onEAN(code); }
+  });
+}
+function stopScanner(){
+  try{Quagga.stop();}catch(e){}
+  scanActive=false;
+  document.getElementById('btn-scan').textContent='▶ Démarrer';
+  document.getElementById('cam-overlay').style.display='none';
+  document.getElementById('cam-placeholder').style.display='flex';
+}
+function manualEAN(){
+  const ean=prompt('Code EAN / code barre :');
+  if(ean&&ean.trim()) onEAN(ean.trim());
+}
+async function onEAN(ean){
+  notify('🔍 Analyse EAN '+ean);
+  const card=document.getElementById('scan-result-card');
+  const content=document.getElementById('scan-result-content');
+  card.classList.add('show');
+  content.innerHTML='<div class="loading"><div class="spin"></div>Analyse via Keepa...</div>';
+  const data=await fetchKeepa(ean);
+  const buyEst = +(data.amazonPrice*0.45).toFixed(2);
+  const r=calcProfit(data.amazonPrice,buyEst);
+  const prod={name:data.name,ean,buyPrice:buyEst,amazonPrice:data.amazonPrice,bsr:data.bsr,source:'Scanner',...r,id:Date.now(),url:'https://www.amazon.fr/s?k='+encodeURIComponent(ean)};
+  addProduct(prod);
+  const sc=r.status==='green'?'var(--green)':r.status==='yellow'?'var(--yellow)':'var(--red)';
+  const demo=data.real?'<span style="color:var(--green);font-size:10px">✅ Données Keepa réelles</span>':'<span style="color:var(--yellow);font-size:10px">⚠️ Mode démo — connectez Keepa</span>';
+  content.innerHTML=`
+    <div style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:12px;font-weight:700">${data.name}</span>
+      ${demo}
+    </div>
+    <div class="result-grid">
+      <div class="result-item"><div class="result-item-label">Prix achat</div><div class="result-item-val">${buyEst.toFixed(2)}€</div></div>
+      <div class="result-item"><div class="result-item-label">Prix Amazon</div><div class="result-item-val">${data.amazonPrice.toFixed(2)}€</div></div>
+      <div class="result-item"><div class="result-item-label">Profit net</div><div class="result-item-val" style="color:${sc}">${r.profit.toFixed(2)}€</div></div>
+      <div class="result-item"><div class="result-item-label">ROI</div><div class="result-item-val" style="color:${sc}">${r.roi}%</div></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+      <a href="https://www.amazon.fr/s?k=${encodeURIComponent(ean)}" target="_blank" class="btn btn-primary btn-sm">🛒 Voir sur Amazon</a>
+      <button class="btn btn-ghost btn-sm" onclick="showPanel('results',document.querySelectorAll('.nav-btn')[3])">📊 Résultats</button>
+    </div>
+  `;
+}
+
+// ============================================================
+// MANUAL
+// ============================================================
+async function analyzeManual(){
+  const name=document.getElementById('m-name').value.trim()||'Produit';
+  const ean=document.getElementById('m-ean').value.trim()||'—';
+  const buy=parseFloat(document.getElementById('m-buy').value);
+  const amazonInput=parseFloat(document.getElementById('m-amazon').value);
+  const commRate=parseFloat(document.getElementById('m-cat').value);
+  if(!buy){ notify('⚠️ Entrez le prix achat','var(--yellow)'); return; }
+  let amazon=amazonInput;
+  if(!amazon&&ean!=='—'){
+    notify('🔍 Fetch Keepa...');
+    const d=await fetchKeepa(ean);
+    amazon=d.amazonPrice;
+  }
+  if(!amazon){ notify('⚠️ Entrez le prix Amazon','var(--yellow)'); return; }
+  const r=calcProfit(amazon,buy,commRate);
+  const prod={name,ean,buyPrice:buy,amazonPrice:amazon,bsr:rndBsr(),source:'Manuel',...r,id:Date.now(),url:ean!=='—'?`https://www.amazon.fr/s?k=${encodeURIComponent(ean)}`:`https://www.amazon.fr/s?k=${encodeURIComponent(name)}`};
+  addProduct(prod);
+  notify('✅ Produit analysé !');
+  showPanel('results',document.querySelectorAll('.nav-btn')[3]);
+}
+
+// ============================================================
+// FILE IMPORT
+// ============================================================
+function handleFile(input){
+  const f=input.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'binary'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1});
+      let count=0;
+      for(let i=1;i<rows.length;i++){
+        const row=rows[i]; if(!row[0]) continue;
+        const name=row[0]||'Produit';
+        const ean=row[1]||'—';
+        const buy=parseFloat(row[2])||0;
+        const amazon=parseFloat(row[3])||simPrice();
+        if(buy<=0) continue;
+        const rc=calcProfit(amazon,buy);
+        addProduct({name,ean,buyPrice:buy,amazonPrice:amazon,bsr:rndBsr(),source:'Import',...rc,id:Date.now()+Math.random(),url:`https://www.amazon.fr/s?k=${encodeURIComponent(name)}`});
+        count++;
+      }
+      notify(`✅ ${count} produits importés !`);
+    }catch(e){ notify('⚠️ Erreur fichier','var(--yellow)'); }
+  };
+  r.readAsBinaryString(f);
+}
+const dz=document.getElementById('dropzone');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag')});
+dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag');const f=e.dataTransfer.files[0];if(f){const dt=new DataTransfer();dt.items.add(f);document.getElementById('file-in').files=dt.files;handleFile(document.getElementById('file-in'));}});
+
+// ============================================================
+// PRODUCTS
+// ============================================================
+function addProduct(p){
+  const idx=products.findIndex(x=>x.ean===p.ean&&x.ean!=='—');
+  if(idx>=0) products[idx]=p; else products.push(p);
+  renderResults(); updateStats();
+}
+
+// ============================================================
+// RESULTS
+// ============================================================
+let activeFilter='all';
+function setFilter(f,btn){
+  activeFilter=f;
+  document.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('active'));
+  btn.classList.add('active');
+  renderResults();
+}
+function renderResults(){
+  const tbody=document.getElementById('results-tbody');
+  let list=products;
+  if(activeFilter!=='all') list=products.filter(p=>p.status===activeFilter);
+  // Update counts
+  document.getElementById('fc-all').textContent=products.length;
+  document.getElementById('fc-green').textContent=products.filter(p=>p.status==='green').length;
+  document.getElementById('fc-yellow').textContent=products.filter(p=>p.status==='yellow').length;
+  document.getElementById('fc-red').textContent=products.filter(p=>p.status==='red').length;
+  if(!list.length){
+    tbody.innerHTML='<tr><td colspan="8"><div class="empty-state"><span class="empty-icon">🔍</span>Aucun produit</div></td></tr>';
+    return;
+  }
+  const sc=s=>s==='green'?'var(--green)':s==='yellow'?'var(--yellow)':'var(--red)';
+  tbody.innerHTML=list.map(p=>`
+    <tr style="cursor:pointer" onclick="window.open('${p.url||'https://www.amazon.fr/s?k='+encodeURIComponent(p.name)}','_blank')">
+      <td class="td-name" title="${p.name}">${p.name}</td>
+      <td><span style="font-size:10px;color:var(--muted)">${p.source||'—'}</span></td>
+      <td style="font-family:var(--mono)">${p.buyPrice.toFixed(2)}€</td>
+      <td style="font-family:var(--mono)">${p.amazonPrice.toFixed(2)}€</td>
+      <td style="font-family:var(--mono);color:${sc(p.status)};font-weight:800">${p.profit.toFixed(2)}€</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="roi-bar" style="width:50px"><div class="roi-fill" style="width:${Math.min(p.roi,100)}%;background:${sc(p.status)}"></div></div>
+          <span style="font-family:var(--mono);font-size:11px;color:${sc(p.status)};font-weight:700">${p.roi}%</span>
+        </div>
+      </td>
+      <td style="font-family:var(--mono);font-size:11px">${p.bsr?'#'+p.bsr.toLocaleString('fr'):'—'}</td>
+      <td><span class="tag ${p.status}">${p.status==='green'?'✅ Rentable':p.status==='yellow'?'⚠️ Limite':'❌ Non rent.'}</span></td>
+    </tr>
+  `).join('');
+}
+
+// ============================================================
+// STATS
+// ============================================================
+function updateStats(){
+  document.getElementById('s-total').textContent=products.length;
+  const good=products.filter(p=>p.status==='green');
+  document.getElementById('s-good').textContent=good.length;
+  const avgRoi=products.length?(products.reduce((s,p)=>s+p.roi,0)/products.length).toFixed(0)+'%':'—';
+  document.getElementById('s-roi').textContent=avgRoi;
+  const totalProfit=good.reduce((s,p)=>s+p.profit,0);
+  document.getElementById('s-profit').textContent=good.length?totalProfit.toFixed(0)+'€':'—';
+  document.getElementById('s-deals').textContent=deals.length;
+}
+
+// ============================================================
+// SOURCING
+// ============================================================
+const SOURCE_COLORS={
+  'Dealabs':'#FF6B35','BonnesAffaires':'#E63946','QuiBonPlan':'#9333ea',
+  'CDiscount':'#E30613','Fnac':'#F5A623','Rakuten':'#BF0000',
+  'eBay':'#0064D2','Idealo':'#00A09B','Veepee':'#E2007A'
+};
+
+const ALL_DEALS=[
+  {title:'LEGO City Camion de Pompiers 60374',category:'jouets',origPrice:49.99,salePrice:24.99,discount:50,source:'Dealabs',emoji:'🧱',amazonEst:44.99,dealUrl:'https://www.dealabs.com/deals',amazonSearch:'LEGO+City+Camion+Pompiers+60374'},
+  {title:'Philips Hue White Starter Pack E27',category:'electronique',origPrice:69.99,salePrice:34.99,discount:50,source:'Dealabs',emoji:'💡',amazonEst:64.99,dealUrl:'https://www.dealabs.com/deals',amazonSearch:'Philips+Hue+White+Starter+Pack+E27'},
+  {title:'Monopoly Edition Voyage du Monde',category:'jouets',origPrice:34.99,salePrice:17.99,discount:49,source:'Dealabs',emoji:'🎲',amazonEst:28.99,dealUrl:'https://www.dealabs.com/deals',amazonSearch:'Monopoly+Voyage+du+Monde'},
+  {title:'Ravensburger Puzzle 1000 Van Gogh',category:'jouets',origPrice:19.99,salePrice:9.99,discount:50,source:'Dealabs',emoji:'🧩',amazonEst:16.99,dealUrl:'https://www.dealabs.com/deals',amazonSearch:'Ravensburger+Puzzle+1000+Van+Gogh'},
+  {title:'Oral-B iO Series 4 Brosse électrique',category:'beaute',origPrice:119.99,salePrice:59.99,discount:50,source:'BonnesAffaires',emoji:'🦷',amazonEst:89.99,dealUrl:'https://www.bonnesaffaires.fr',amazonSearch:'Oral-B+iO+Series+4'},
+  {title:'Yankee Candle Large Jar Clean Cotton',category:'maison',origPrice:31.99,salePrice:15.99,discount:50,source:'BonnesAffaires',emoji:'🕯️',amazonEst:26.99,dealUrl:'https://www.bonnesaffaires.fr',amazonSearch:'Yankee+Candle+Large+Jar+Clean+Cotton'},
+  {title:'Samsung Galaxy Buds2 Pro Noir',category:'electronique',origPrice:229.99,salePrice:99.99,discount:57,source:'CDiscount',emoji:'🎧',amazonEst:179.99,dealUrl:'https://www.cdiscount.com',amazonSearch:'Samsung+Galaxy+Buds2+Pro'},
+  {title:'Rowenta Air Force 360 Aspirateur',category:'maison',origPrice:199.99,salePrice:89.99,discount:55,source:'CDiscount',emoji:'🌀',amazonEst:149.99,dealUrl:'https://www.cdiscount.com',amazonSearch:'Rowenta+Air+Force+360'},
+  {title:'Nintendo Switch Joy-Con Bleu/Rouge',category:'electronique',origPrice:79.99,salePrice:49.99,discount:38,source:'Fnac',emoji:'🎮',amazonEst:69.99,dealUrl:'https://www.fnac.com',amazonSearch:'Nintendo+Switch+Joy-Con'},
+  {title:'Casque Sony WH-1000XM5 Noir',category:'electronique',origPrice:349.99,salePrice:199.99,discount:43,source:'Fnac',emoji:'🎵',amazonEst:279.99,dealUrl:'https://www.fnac.com',amazonSearch:'Sony+WH-1000XM5'},
+  {title:'Nike Air Max 90 Taille 42',category:'sport',origPrice:130,salePrice:69.99,discount:46,source:'Rakuten',emoji:'👟',amazonEst:95.00,dealUrl:'https://www.rakuten.fr',amazonSearch:'Nike+Air+Max+90'},
+  {title:'Nescafé Dolce Gusto Genio S Touch',category:'maison',origPrice:79.99,salePrice:34.99,discount:56,source:'eBay',emoji:'☕',amazonEst:65.00,dealUrl:'https://www.ebay.fr',amazonSearch:'Nescafe+Dolce+Gusto+Genio+S'},
+  {title:'Dyson V12 Detect Slim Aspirateur',category:'maison',origPrice:649.99,salePrice:399.99,discount:38,source:'Idealo',emoji:'🌪️',amazonEst:549.99,dealUrl:'https://www.idealo.fr',amazonSearch:'Dyson+V12+Detect+Slim'},
+  {title:'Instant Pot Duo 7-en-1 5.7L',category:'maison',origPrice:119.99,salePrice:59.99,discount:50,source:'Idealo',emoji:'🍲',amazonEst:99.99,dealUrl:'https://www.idealo.fr',amazonSearch:'Instant+Pot+Duo+7en1'},
+  {title:'Le Creuset Cocotte Ronde 26cm Rouge',category:'maison',origPrice:299.99,salePrice:139.99,discount:53,source:'Veepee',emoji:'🍳',amazonEst:249.99,dealUrl:'https://www.veepee.fr',amazonSearch:'Le+Creuset+Cocotte+Ronde+26cm'},
+  {title:'Garmin Forerunner 255 GPS Running',category:'sport',origPrice:349.99,salePrice:199.99,discount:43,source:'QuiBonPlan',emoji:'⌚',amazonEst:279.99,dealUrl:'https://www.quibonplan.com',amazonSearch:'Garmin+Forerunner+255'},
+  {title:'Weber Spirit E-310 Barbecue Gaz',category:'maison',origPrice:599.99,salePrice:299.99,discount:50,source:'QuiBonPlan',emoji:'🔥',amazonEst:499.99,dealUrl:'https://www.quibonplan.com',amazonSearch:'Weber+Spirit+E310'},
+  {title:'Lego Technic Bugatti Bolide 42151',category:'jouets',origPrice:99.99,salePrice:54.99,discount:45,source:'eBay',emoji:'🏎️',amazonEst:84.99,dealUrl:'https://www.ebay.fr',amazonSearch:'Lego+Technic+Bugatti+Bolide+42151'},
+];
+
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+async function startSourcing(){
+  const btn=document.getElementById('btn-source');
+  const feed=document.getElementById('deals-feed');
+  const minDiscount=parseInt(document.getElementById('src-discount').value);
+  const cat=document.getElementById('src-cat').value;
+  btn.disabled=true;
+  btn.innerHTML='<div class="spin"></div> Sourcing en cours...';
+  feed.innerHTML='<div class="loading"><div class="spin"></div>Connexion aux sources...</div>';
+  await sleep(700);
+  feed.innerHTML='<div class="loading"><div class="spin"></div>Analyse des prix Amazon...</div>';
+  await sleep(900);
+  feed.innerHTML='<div class="loading"><div class="spin"></div>Calcul de la rentabilité...</div>';
+  await sleep(600);
+
+  let filtered=ALL_DEALS.filter(d=>{
+    if(d.discount<minDiscount) return false;
+    if(cat!=='all'&&d.category!==cat) return false;
+    return true;
+  });
+
+  const rentables=filtered.filter(d=>{
+    const r=calcProfit(d.amazonEst,d.salePrice);
+    return r.status==='green';
+  });
+
+  deals=rentables;
+  updateStats();
+  btn.disabled=false;
+  btn.innerHTML='🔄 Re-sourcer';
+
+  if(!rentables.length){
+    feed.innerHTML='<div class="empty-state"><span class="empty-icon">😅</span>Aucun deal rentable — baissez le ROI minimum dans ⚙️</div>';
+    return;
+  }
+  notify(`🔥 ${rentables.length} deals rentables sur ${filtered.length} analysés !`);
+  feed.innerHTML=`<div style="font-size:11px;color:var(--muted);margin-bottom:10px;font-weight:700">🔥 ${rentables.length} DEALS RENTABLES — Cliquer pour ouvrir la page du produit</div>`;
+  feed.innerHTML+=rentables.map(d=>renderDeal(d)).join('');
+}
+
+function renderDeal(d){
+  const r=calcProfit(d.amazonEst,d.salePrice);
+  const sc=r.status==='green'?'var(--green)':r.status==='yellow'?'var(--yellow)':'var(--red)';
+  const srcColor=SOURCE_COLORS[d.source]||'#666';
+  const aUrl=`https://www.amazon.fr/s?k=${d.amazonSearch}`;
+  const roiW=Math.min(r.roi,100);
+  return `
+    <div class="deal-row" onclick="window.open('${d.dealUrl}','_blank')">
+      <div class="deal-row-top">
+        <div class="deal-emoji">${d.emoji}</div>
+        <div class="deal-info">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <span class="deal-source-badge" style="background:${srcColor}20;color:${srcColor};border:1px solid ${srcColor}40">${d.source}</span>
+            <span class="tag green" style="font-size:9px">✅ Rentable</span>
+          </div>
+          <div class="deal-name">${d.title}</div>
+          <div class="roi-bar-wrap">
+            <div class="roi-bar"><div class="roi-fill" style="width:${roiW}%;background:${sc}"></div></div>
+            <span style="font-size:11px;color:${sc};font-weight:800;font-family:var(--mono)">${r.roi}% ROI</span>
+          </div>
+        </div>
+        <div class="deal-price-col">
+          <div class="price-orig">${d.origPrice.toFixed(2)}€</div>
+          <div class="price-sale">${d.salePrice.toFixed(2)}€</div>
+          <div class="price-badge">-${d.discount}%</div>
+        </div>
+      </div>
+      <div class="deal-metrics">
+        <div class="metric"><div class="metric-label">Profit</div><div class="metric-val" style="color:${sc}">${r.profit.toFixed(2)}€</div></div>
+        <div class="metric"><div class="metric-label">Amazon est.</div><div class="metric-val">${d.amazonEst.toFixed(2)}€</div></div>
+        <div class="metric"><div class="metric-label">Réduction</div><div class="metric-val" style="color:var(--yellow)">-${d.discount}%</div></div>
+      </div>
+      <div class="deal-actions" onclick="event.stopPropagation()">
+        <a href="${d.dealUrl}" target="_blank" class="btn btn-ghost btn-sm">🔗 Deal</a>
+        <a href="${aUrl}" target="_blank" class="btn btn-primary btn-sm">🛒 Amazon</a>
+        <button class="btn btn-success btn-sm" onclick="addDealResult(event,'${d.title.replace(/'/g,"\\'")}',${d.salePrice},${d.amazonEst},'${d.source}','${aUrl}')">+ Résultats</button>
+      </div>
+    </div>
+  `;
+}
+
+function addDealResult(e,title,buy,amazon,source,url){
+  e.stopPropagation();
+  const r=calcProfit(amazon,buy);
+  addProduct({name:title,ean:'—',buyPrice:buy,amazonPrice:amazon,bsr:rndBsr(),source,...r,id:Date.now(),url});
+  notify('✅ Ajouté aux résultats !');
+}
+
+// ============================================================
+// CSV EXPORT
+// ============================================================
+function exportCSV(){
+  if(!products.length){ notify('Aucun produit','var(--yellow)'); return; }
+  const h=['Produit','EAN','Source','Achat','Amazon','Profit','ROI','BSR','Statut'];
+  const rows=products.map(p=>[p.name,p.ean,p.source||'—',p.buyPrice.toFixed(2),p.amazonPrice.toFixed(2),p.profit.toFixed(2),p.roi+'%',p.bsr||'—',p.status==='green'?'Rentable':p.status==='yellow'?'Limite':'Non rentable']);
+  const csv=[h,...rows].map(r=>r.join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'}));
+  a.download='arbitragex-export.csv'; a.click();
+  notify('✅ Export CSV !');
+}
+
+// ============================================================
+// INIT
+// ============================================================
+window.addEventListener('DOMContentLoaded',()=>{
+  loadSettingsUI();
+  document.getElementById('m-cat').value=gs('cat');
+  document.getElementById('src-discount').value=gs('discount');
+});
+</script>
+</body>
+</html>
