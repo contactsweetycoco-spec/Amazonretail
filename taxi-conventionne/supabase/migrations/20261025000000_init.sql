@@ -265,6 +265,19 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------
+-- Droits d'accès explicites (fonctionne même si "Automatically expose new
+-- tables" est décoché). Les règles RLS ci-dessus filtrent ensuite les lignes.
+-- ---------------------------------------------------------------------
+grant usage on schema public to authenticated, service_role;
+grant select, update on public.profiles to authenticated;
+grant select, insert, update, delete on public.driver_locations to authenticated;
+grant select, insert on public.rides to authenticated;
+grant all on public.profiles, public.driver_locations, public.rides to service_role;
+grant execute on function public.accept_ride(uuid),
+  public.update_ride_status(uuid, public.ride_status),
+  public.mark_voucher_sent(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------
 -- Temps réel (carte et liste des courses mises à jour en direct)
 -- ---------------------------------------------------------------------
 do $$ begin

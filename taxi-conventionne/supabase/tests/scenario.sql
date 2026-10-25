@@ -16,8 +16,6 @@ begin
   raise notice 'ok - %', what;
 end $$;
 
-grant select, insert, update, delete on all tables in schema public to authenticated;
-
 insert into auth.users (id, email, raw_user_meta_data) values
  ('00000000-0000-0000-0000-00000000000a', 'a@x.fr', '{"full_name":"Alice","phone":"1","ads_number":"A1","pro_card_number":"P1","cpam_conventionne":true}'),
  ('00000000-0000-0000-0000-00000000000b', 'b@x.fr', '{"full_name":"Bob","phone":"2","ads_number":"A2","pro_card_number":"P2"}'),
@@ -60,9 +58,10 @@ set test.uid = '00000000-0000-0000-0000-00000000000c';
 select pg_temp.must_fail($$select accept_ride('11111111-1111-1111-1111-111111111111')$$);
 select pg_temp.check(true, 'C ne peut pas prendre une course déjà acceptée');
 select pg_temp.check((select count(*) = 0 from rides), 'C ne voit plus la course attribuée à B');
-update rides set accepted_by = auth.uid() where id = '11111111-1111-1111-1111-111111111111';
+select pg_temp.must_fail($$update rides set accepted_by = auth.uid() where id = '11111111-1111-1111-1111-111111111111'$$);
+select pg_temp.must_fail($$delete from rides$$);
 set test.uid = '00000000-0000-0000-0000-00000000000b';
-select pg_temp.check((select accepted_by = auth.uid() from rides where id = '11111111-1111-1111-1111-111111111111'), 'une modification directe est sans effet');
+select pg_temp.check((select accepted_by = auth.uid() from rides where id = '11111111-1111-1111-1111-111111111111'), 'modifier ou supprimer une course directement est interdit');
 
 -- A : bon envoyé, mais ne peut pas faire avancer la course à la place du chauffeur
 set test.uid = '00000000-0000-0000-0000-00000000000a';
