@@ -1,0 +1,49 @@
+name: Taxi Conventionné
+
+on:
+  push:
+    paths: ['taxi-conventionne/**', '.github/workflows/taxi-conventionne.yml']
+  pull_request:
+    paths: ['taxi-conventionne/**', '.github/workflows/taxi-conventionne.yml']
+
+defaults:
+  run:
+    working-directory: taxi-conventionne
+
+jobs:
+  app:
+    name: Application (typage + compilation)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: taxi-conventionne/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - name: Compilation Android
+        run: npx expo export --platform android --output-dir /tmp/export
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ci
+
+  database:
+    name: Base de données (règles de sécurité)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./supabase/tests/run.sh
