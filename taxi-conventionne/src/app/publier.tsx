@@ -83,6 +83,8 @@ export default function Publier() {
       Alert.alert('Publication impossible', errorMessage(error));
       return;
     }
+    // Prévient les chauffeurs (sans bloquer si les notifications ne sont pas déployées).
+    supabase.functions.invoke('notify-new-ride', { body: { rideId: data.id } }).catch(() => {});
     router.replace(`/course/${data.id}`);
   }
 

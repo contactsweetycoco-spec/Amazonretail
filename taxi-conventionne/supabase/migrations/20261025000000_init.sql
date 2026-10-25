@@ -1,6 +1,7 @@
 -- =====================================================================
 -- Taxi Conventionné — Bourse de courses entre chauffeurs
--- Schéma Supabase (PostgreSQL). À exécuter dans l'éditeur SQL Supabase.
+-- Schéma Supabase (PostgreSQL). Installé par `npm run supabase:setup`,
+-- ou à coller tel quel dans l'éditeur SQL de Supabase.
 --
 -- RÈGLE IMPORTANTE : aucune donnée de santé n'est stockée ici.
 -- Pas de nom de patient, pas de motif médical, pas de bon de transport.
@@ -156,6 +157,7 @@ create table if not exists public.rides (
   accepted_by      uuid references public.profiles (id) on delete set null,
   accepted_at      timestamptz,
   voucher_sent_at  timestamptz,                -- bon envoyé par mail (date seulement)
+  notified_at      timestamptz,                -- notifications déjà envoyées
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now()
 );
@@ -273,8 +275,7 @@ do $$ begin
 exception when duplicate_object then null; end $$;
 
 -- ---------------------------------------------------------------------
--- RGPD : purge automatique (à planifier avec pg_cron, ex. chaque nuit)
---   select cron.schedule('purge-courses', '0 3 * * *', 'select public.purge_old_data()');
+-- RGPD : purge automatique, chaque nuit à 3 h (planifiée en fin de fichier)
 -- ---------------------------------------------------------------------
 create or replace function public.purge_old_data()
 returns void language sql security definer set search_path = public as $$
@@ -283,3 +284,10 @@ returns void language sql security definer set search_path = public as $$
       or (status = 'open' and scheduled_at < now() - interval '2 days');
   delete from public.driver_locations where updated_at < now() - interval '1 day';
 $$;
+
+do $$ begin
+  create extension if not exists pg_cron;
+  perform cron.schedule('purge-courses', '0 3 * * *', 'select public.purge_old_data()');
+exception when others then
+  raise notice 'pg_cron indisponible : planifiez public.purge_old_data() manuellement';
+end $$;

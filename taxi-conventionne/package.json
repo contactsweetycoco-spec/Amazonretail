@@ -31,7 +31,9 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "supabase:setup": "bash scripts/setup-supabase.sh",
+    "test:db": "bash supabase/tests/run.sh"
   },
   "private": true
 }

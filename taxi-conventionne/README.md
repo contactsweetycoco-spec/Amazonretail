@@ -17,7 +17,7 @@ Application mobile (iPhone et Android) qui remplace les groupes WhatsApp :
 L'application ne stocke **aucune donnée de santé** : pas de nom de patient, pas de motif médical,
 pas de bon de transport. Les lieux sont saisis sous forme de ville, de quartier ou
 d'établissement. Les courses terminées sont effacées au bout de 90 jours, et les positions
-GPS au bout de 24 h (fonction `purge_old_data`).
+GPS au bout de 24 h (fonction `purge_old_data`, lancée chaque nuit).
 
 La position d'un chauffeur n'est partagée que lorsqu'il active « Disponible », et seulement
 quand l'application est ouverte. Elle disparaît de la carte après 15 minutes sans mise à jour.
@@ -35,53 +35,80 @@ src/app/                 Écrans (Expo Router)
   course/[id].tsx                          Détail : accepter, étapes, bon par mail
   admin.tsx                                Validation des nouveaux chauffeurs
 src/lib/                 Connexion Supabase, session, géolocalisation, notifications
-supabase/schema.sql      Base de données et règles de sécurité
+supabase/migrations/     Base de données et règles de sécurité
 supabase/functions/      Envoi des notifications « nouvelle course »
+supabase/tests/          Tests automatiques des règles de sécurité
+scripts/setup-supabase.sh  Installation du serveur en une commande
 ```
 
 ## Mise en route
 
+Prérequis : [Node.js](https://nodejs.org) installé sur votre ordinateur.
+
 ### 1. Créer le serveur (Supabase, gratuit pour démarrer)
 
-1. Créez un projet sur [supabase.com](https://supabase.com), de préférence dans la région
-   **Europe (Paris ou Francfort)**.
-2. Dans **SQL Editor**, collez et exécutez le contenu de `supabase/schema.sql`.
-3. Inscrivez-vous dans l'application, puis nommez-vous administrateur dans **SQL Editor** :
-   ```sql
-   update profiles set verified = true, is_admin = true where email = 'votre@mail.fr';
+1. Créez un compte et un **nouveau projet** sur [supabase.com](https://supabase.com), dans la
+   région **Europe (Paris ou Francfort)**. Notez bien le mot de passe de la base.
+2. Dans ce dossier, lancez :
+   ```bash
+   npm install
+   npm run supabase:setup
    ```
-4. Notifications (facultatif) : déployez la fonction avec
-   `npx supabase functions deploy notify-new-ride`. Ensuite, dans
-   **Database → Webhooks**, créez un webhook sur `INSERT` de la table `rides` qui appelle
-   cette fonction.
-5. Purge automatique : activez l'extension **pg_cron**, puis exécutez
-   `select cron.schedule('purge', '0 3 * * *', 'select public.purge_old_data()');`
+   Le script vous connecte à Supabase, crée les tables et les règles de sécurité, déploie
+   les notifications, programme la purge RGPD de chaque nuit et écrit le fichier `.env.local`.
 
-### 2. Lancer l'application
+> Sans le script, vous pouvez aussi coller `supabase/migrations/20261025000000_init.sql`
+> dans **SQL Editor**, puis copier `.env.example` en `.env.local` et y mettre l'URL et la clé
+> « anon » (Project Settings → API).
+
+### 2. Tester sur votre téléphone
 
 ```bash
-cd taxi-conventionne
-npm install
-cp .env.example .env.local   # puis collez l'URL et la clé "anon" de Supabase
 npx expo start
 ```
 
-Scannez le QR code avec l'application **Expo Go** sur votre téléphone pour tester.
+Scannez le QR code avec l'application **Expo Go** (App Store / Play Store).
+
+Inscrivez-vous dans l'app, puis nommez-vous administrateur dans Supabase → **SQL Editor** :
+
+```sql
+update profiles set verified = true, is_admin = true where email = 'votre@mail.fr';
+```
+
+Ensuite, vous validerez les autres chauffeurs directement dans l'app (Profil → Valider les
+nouveaux chauffeurs).
+
+> Les notifications ne fonctionnent pas dans Expo Go. Il faut une version installée
+> (étape 3, profil `preview`).
 
 ### 3. Publier sur l'App Store et le Play Store
 
+Il vous faut un compte [Expo](https://expo.dev) (gratuit), un compte Apple Developer
+(99 €/an) et un compte Google Play Console (25 € une fois).
+
 ```bash
-npx eas-cli@latest init      # crée le projet EAS (nécessaire aussi pour les notifications)
-npx eas-cli@latest build --platform all
-npx eas-cli@latest submit
+npx eas-cli@latest login
+npx eas-cli@latest init                    # relie l'app à votre compte Expo
+# Clés de l'app pour les versions installées (mêmes valeurs que .env.local) :
+npx eas-cli@latest env:create --name EXPO_PUBLIC_SUPABASE_URL --value "https://xxx.supabase.co" --environment production --environment preview --visibility plaintext
+npx eas-cli@latest env:create --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "votre-cle" --environment production --environment preview --visibility plaintext
+# Clé Google Maps (Google Cloud Console → « Maps SDK for Android ») :
+npx eas-cli@latest env:create --name GOOGLE_MAPS_API_KEY --value "votre-cle" --environment production --environment preview --visibility sensitive
+
+npx eas-cli@latest build --profile preview --platform android   # APK à installer pour tester
+npx eas-cli@latest build --profile production --platform all    # versions pour les stores
+npx eas-cli@latest submit --platform all
 ```
 
-Pour Android en production, ajoutez une clé Google Maps dans `app.json`, avec le plugin
-`["react-native-maps", { "androidGoogleMapsApiKey": "..." }]`.
+## Vérifications automatiques
+
+À chaque modification, GitHub vérifie que l'application compile et que les règles de
+sécurité de la base sont respectées (`.github/workflows/taxi-conventionne.yml`).
+En local : `npx tsc --noEmit` et `npm run test:db` (avec un PostgreSQL local).
 
 ## Avant le lancement
 
 - Faites valider par un juriste le statut de « centrale de réservation » (Code des transports),
   surtout si vous prenez une commission.
-- Rédigez des CGU et une politique de confidentialité (RGPD).
+- Rédigez des CGU et une politique de confidentialité (RGPD). Les stores l'exigent.
 - Pour le bon de transport, privilégiez une messagerie sécurisée de santé ou un mail chiffré.

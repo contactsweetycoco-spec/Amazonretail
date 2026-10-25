@@ -49,6 +49,7 @@ export type Ride = {
   accepted_by: string | null;
   accepted_at: string | null;
   voucher_sent_at: string | null;
+  notified_at: string | null;
   created_at: string;
   updated_at: string;
 };

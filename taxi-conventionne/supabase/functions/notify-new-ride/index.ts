@@ -1,9 +1,8 @@
 // Supabase Edge Function (Deno) : prévient les chauffeurs quand une course est publiée.
 //
-// Déploiement :
-//   supabase functions deploy notify-new-ride
-// Puis dans Supabase > Database > Webhooks : sur INSERT de la table `rides`,
-// appeler cette fonction (type "Supabase Edge Functions").
+// Appelée par l'application juste après la publication d'une course
+// (déployée par `npm run supabase:setup`). Elle vérifie que l'appelant est
+// bien l'auteur de la course et n'envoie les notifications qu'une seule fois.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 type Ride = {
@@ -24,13 +23,33 @@ function distanceKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-Deno.serve(async (req) => {
-  const { record: ride } = (await req.json()) as { record: Ride };
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
+Deno.serve(async (req) => {
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
+
+  const jwt = req.headers.get('Authorization')?.replace('Bearer ', '') ?? '';
+  const { data: auth } = await supabase.auth.getUser(jwt);
+  if (!auth.user) return json({ error: 'Non connecté' }, 401);
+
+  const { rideId } = (await req.json()) as { rideId?: string };
+  if (!rideId) return json({ error: 'rideId manquant' }, 400);
+
+  // Réserve l'envoi : une seule fois par course, et seulement par son auteur.
+  const { data: ride } = await supabase
+    .from('rides')
+    .update({ notified_at: new Date().toISOString() })
+    .eq('id', rideId)
+    .eq('created_by', auth.user.id)
+    .eq('status', 'open')
+    .is('notified_at', null)
+    .select()
+    .maybeSingle<Ride>();
+  if (!ride) return json({ notified: 0 });
 
   const { data: drivers, error } = await supabase
     .from('profiles')
@@ -38,7 +57,7 @@ Deno.serve(async (req) => {
     .eq('verified', true)
     .not('push_token', 'is', null)
     .neq('id', ride.created_by);
-  if (error) return new Response(error.message, { status: 500 });
+  if (error) return json({ error: error.message }, 500);
 
   // Si on connaît la position récente du chauffeur et le lieu de départ,
   // on ne prévient que ceux qui sont dans leur rayon choisi.
@@ -62,6 +81,7 @@ Deno.serve(async (req) => {
   const messages = targets.map((d) => ({
     to: d.push_token,
     sound: 'default',
+    channelId: 'courses',
     title: 'Nouvelle course disponible',
     body: `${ride.pickup_label} → ${ride.dropoff_label} · ${when}`,
     data: { rideId: ride.id },
@@ -76,7 +96,5 @@ Deno.serve(async (req) => {
     });
   }
 
-  return new Response(JSON.stringify({ notified: messages.length }), {
-    headers: { 'Content-Type': 'application/json' },
-  });
+  return json({ notified: messages.length });
 });
